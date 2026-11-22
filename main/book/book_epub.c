@@ -2292,7 +2292,18 @@ esp_err_t book_epub_image(book_epub_t *book, size_t chapter, const char *src,
     return book_epub_image_bounded(book, chapter, src, data, size, png, ZIP_OUTPUT_MAX);
 }
 uint32_t book_epub_total_bytes(const book_epub_t *book) { return book ? book->total : 0; }
-uint32_t book_epub_chapter_byte_offset(const book_epub_t *book, size_t i) { return book && i < book->count ? book->chapters[i].offset : 0; }
+// 进度映射需要章节原始 XHTML：复用 load_entry，读出解压后未修改的字节。
+// Progress mapping needs the original chapter XHTML: reuse load_entry to read the inflated bytes.
+esp_err_t book_epub_chapter_source(book_epub_t *book, size_t chapter, char **data, size_t *size) {
+    if (!book || !data || !size || chapter >= book->count) return ESP_ERR_INVALID_ARG;
+    *data = NULL;
+    *size = 0;
+    return load_entry(book, book->chapters[chapter].zip_index, data, size);
+}
+
+uint32_t book_epub_chapter_byte_offset(const book_epub_t *book, size_t i) {
+    return book && i < book->count ? book->chapters[i].offset : 0;
+}
 
 static esp_err_t metadata_cached_read(const char *cache_path, const book_index_cache_header_t *cache_key,
                                        char *title, size_t title_cap, char *author, size_t author_cap) {

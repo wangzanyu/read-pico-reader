@@ -52,6 +52,10 @@ esp_err_t book_epub_load_target(book_epub_t *book, size_t index, const char *anc
                                  size_t source_offset, size_t *text_offset, html_text_t *out);
 /// 加载章内 JPEG/PNG/WebP；仅允许 ZIP 内相对路径，调用方释放数据。/ Load an in-book JPEG/PNG/WebP from a relative path; caller frees data.
 esp_err_t book_epub_image(book_epub_t *book, size_t chapter, const char *src, uint8_t **data, size_t *size, bool *png);
+/// 读取一章未压缩 XHTML 原始字节（进度映射用）；调用方 free。不改变书源状态。
+/// Read one chapter's uncompressed XHTML bytes for progress mapping; caller frees. The
+/// source state is left untouched.
+esp_err_t book_epub_chapter_source(book_epub_t *book, size_t chapter, char **data, size_t *size);
 esp_err_t book_epub_image_bounded(book_epub_t *book, size_t chapter, const char *src,
                                  uint8_t **data, size_t *size, bool *png, size_t budget);
 /// spine 原始 HTML 未压缩字节总量，不等于 EPUB 文件大小。/ Total uncompressed source HTML bytes in the spine, not EPUB file size.

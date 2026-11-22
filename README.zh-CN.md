@@ -56,6 +56,13 @@ WiFi 和热点传书网页都有「状态栏签名」，保存或清空后写入
 
 文件管理直接显示 **WiFi传输、热点传输、USB传输** 三个入口。WiFi 传输连接已保存的网络，未配网时进入网络设置；热点传输直接创建 kiikoread 热点；USB 传输连接电脑读写 TF 卡。WiFi 与热点网页继续支持 TF 卡目录浏览、任意文件上传、书籍/字体/图片导入和状态栏签名设置。
 
+### 网络服务（本地测试）
+
+> S31（Metalio）的 5 MB 应用分区放不下这两个功能，S31 固件暂不编入；Pico 固件包含。  
+> The S31 (Metalio) 5 MB app partition cannot hold both features; the Pico build includes them.
+
+设置 → 网络服务新增 **KOReader 同步** 与 **OPDS 书库**。KOReader 同步用 kosync 协议与服务器同步 EPUB 阅读进度，支持自建服务器、账号密码、内容或文件名匹配，并可在本机与云端进度之间选择上传或应用；OPDS 书库浏览 OPDS 1.2 Atom 目录并把 EPUB 下载到书籍目录。两者按需拉起同一 WiFi STA 连接，配置与凭据只保存在**书籍目录**下的 `.readpico/net/`（Pico 默认 TF:/books/.readpico/net/），不写入 NVS 或系统设置备份。仅支持 EPUB 与 OPDS 1.2 Atom + HTTP Basic，不支持 OAuth、LCP/DRM 与搜索。
+
 ## 升级和恢复
 
 ### 电源与设置拖动

@@ -1,3 +1,9 @@
+## 本地测试 / Local test — 2026-11-22（KOReader 同步与 OPDS 书库）
+
+- 设置 → 网络服务新增「KOReader 同步」与「OPDS 书库」：前者用 kosync 协议同步 EPUB 阅读进度（自建/公共服务器、账号密码、内容或文件名匹配、拉取比较、上传本机、应用云端），后者浏览 OPDS 1.2 Atom 目录并把 EPUB 下载到书籍目录；配置与凭据只存书籍目录下的 `.readpico/net/`（Pico 默认 TF:/books/.readpico/net/），不进 NVS 与设置备份。
+- Settings → Network services adds KOReader sync (kosync progress for EPUB: server/account/password, content-or-filename matching, fetch/compare, upload local and apply remote) and the OPDS library (browse OPDS 1.2 Atom catalogs and download EPUBs into the book root). Configuration and credentials stay on the TF card under the book directory's `.readpico/net/` (Pico default `TF:/books/.readpico/net/`), never in NVS or the settings backup.
+- 受 S31 5 MB 应用分区限制，S31 固件暂不编入这两个功能（Pico 固件包含）；S31 构建恢复基线体积。S31's 5 MB app partition cannot hold both features, so the S31 build leaves them out and returns to the baseline size; the Pico build includes both.
+
 ## S31 0.3.3-rc118 — 2026-11-21
 
 - 恢复S31 RC110的阅读水波纹擦白顺序与八条带节奏，保留当前正文裁剪、上下栏局刷和逐页数字；中断后从白重建目标页，失败保持可重试。

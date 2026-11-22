@@ -80,6 +80,8 @@
 #include "read_pico_search.h"
 #include "book_store.h"
 #include "book_cover.h"
+#include "book_kosync.h"
+#include "book_opds.h"
 #include "ota_update.h"
 #include "ota_online.h"
 #include "esp_app_desc.h"
@@ -96,6 +98,29 @@
 static void fit_value(char *value, int width);
 static void settings_card(uint8_t *fb, EpdRect rect, int radius, uint8_t fill, uint8_t edge);
 static char s_notice[96];
+// 网络服务行缓存：进页/媒体就绪时读一次内存卡配置，render 不碰文件。
+// Network-service row cache: read the TF config on entry/media-ready; render never touches files.
+static char s_net_kosync[96] = "未配置";
+static char s_net_opds[64] = "未配置";
+static void settings_network_refresh(void) {
+    kosync_config_t kosync = {0};
+    if (kosync_config_load(&kosync) == ESP_OK && kosync_config_ready(&kosync)) {
+        const char *host = kosync.server;
+        const char *scheme = strstr(host, "://");
+        if (scheme) host = scheme + 3;
+        size_t length = strcspn(host, "/?#");
+        if (length >= sizeof(s_net_kosync)) length = sizeof(s_net_kosync) - 1;
+        memcpy(s_net_kosync, host, length);
+        s_net_kosync[length] = 0;
+        if (!s_net_kosync[0]) snprintf(s_net_kosync, sizeof(s_net_kosync), "未配置");
+    } else {
+        snprintf(s_net_kosync, sizeof(s_net_kosync), "未配置");
+    }
+    opds_config_t opds = {0};
+    if (opds_config_load(&opds) == ESP_OK && opds.count)
+        snprintf(s_net_opds, sizeof(s_net_opds), "%u 台服务器", (unsigned)opds.count);
+    else snprintf(s_net_opds, sizeof(s_net_opds), "未配置");
+}
 typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
                SETTINGS_TIME_EDIT, SETTINGS_SHELF_STYLE, SETTINGS_SYSTEM_FONT,
                SETTINGS_SYSTEM_SIZE, SETTINGS_SYSTEM_CONTRAST, SETTINGS_MAIN_REFRESH, SETTINGS_LOCK_STYLE,
@@ -386,6 +411,10 @@ static int settings_main_row_height(void) {
 #define SETTINGS_DISPLAY_Y (SETTINGS_WIRELESS_Y + SETTINGS_WIRELESS_ROWS * SETTINGS_ROW_H + 78)
 #define SETTINGS_PERSONAL_Y (SETTINGS_DISPLAY_Y + SETTINGS_DISPLAY_ROWS * SETTINGS_ROW_H + 78)
 #define SETTINGS_MAINTENANCE_Y (SETTINGS_PERSONAL_Y + SETTINGS_PERSONAL_ROWS * SETTINGS_ROW_H + 78)
+// “网络服务”分组接在“升级和恢复”之后，两行：KOReader 同步 / OPDS 书库。
+// "Network services" follows Maintenance with two rows: KOReader sync and the OPDS library.
+#define SETTINGS_NETWORK_ROWS 2
+#define SETTINGS_NETWORK_Y (SETTINGS_MAINTENANCE_Y + SETTINGS_MAINTENANCE_ROWS * SETTINGS_ROW_H + 78)
 
 // 设置行图标：32 像素盒，在行高 68 里垂直居中；墨色统一，避免一行一个灰度。
 // Setting row icons: a 32 px box centred in the 68 px row with one shared ink level.
@@ -398,7 +427,7 @@ static int settings_main_row_height(void) {
 // Main-page scroll limit: just enough to bring the last row of the last group above the nav bar,
 // with 8 px to spare.
 #define SETTINGS_SCROLL_MAX \
-    (SETTINGS_MAINTENANCE_Y + SETTINGS_MAINTENANCE_ROWS * SETTINGS_ROW_H - UI_NAV_REFRESH_END + 12)
+    (SETTINGS_NETWORK_Y + SETTINGS_NETWORK_ROWS * SETTINGS_ROW_H - UI_NAV_REFRESH_END + 12)
 static char s_editor[96], s_editor_notice[80];
 static ui_text_edit_t s_editor_input;
 static bool s_editor_signature;
@@ -999,6 +1028,8 @@ static void setting_icon(uint8_t *fb, int index, int cx, int cy) {
         UI_ICON_LOCK,              // 18 双击解锁 / double-press unlock
         [20] = UI_ICON_CHART_COLUMN, // 20 书籍百分比 / cover progress
         [21] = UI_ICON_REFRESH_CW,  // 21 设备同步 / device sync
+        [23] = UI_ICON_BOOK_OPEN,   // 23 KOReader 同步 / KOReader sync
+        [24] = UI_ICON_DOWNLOAD,    // 24 OPDS 书库 / OPDS library
     };
     if (index < 0 || index >= (int)(sizeof(icons) / sizeof(icons[0]))) return;
     ui_draw_icon(fb, cx, cy, SETTINGS_ICON_PX, icons[index], SETTINGS_ICON_INK);
@@ -1749,6 +1780,11 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
     const int maintenance_icons[]={12,8,17,13,11};
     setting_group(fb,SETTINGS_MAINTENANCE_Y-49,"升级和恢复",SETTINGS_MAINTENANCE_Y,
                   maintenance_icons,maintenance_labels,maintenance_values,SETTINGS_MAINTENANCE_ROWS);
+    const char *network_labels[]={"KOReader 同步","OPDS 书库"};
+    const char *network_values[]={s_net_kosync,s_net_opds};
+    const int network_icons[]={23,24};
+    setting_group(fb,SETTINGS_NETWORK_Y-49,"网络服务",SETTINGS_NETWORK_Y,
+                  network_icons,network_labels,network_values,SETTINGS_NETWORK_ROWS);
     // 主列表也要有一行提示位：确认、修复结果都写在这里，不然点了没有任何回音。
     // The main list needs a notice line too: confirmation and the repair result land here, or a tap
     // would have no answer at all.
@@ -2139,6 +2175,7 @@ static void on_enter(app_ctx_t *ctx) {
     s_boot_pending = s_local_pending = s_upgrade_restart = false;
     s_upgrade_offer_pending = s_upgrade_confirm = false;
     (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved);
+    settings_network_refresh();
     settings_prepare_profile();
 }
 
@@ -3063,6 +3100,12 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
         else {s_boot_pending=false;s_page=SETTINGS_BOOT;}
         return APP_REDRAW_PAGE;
     }
+    if(y>=SETTINGS_NETWORK_Y && y<SETTINGS_NETWORK_Y+SETTINGS_NETWORK_ROWS*SETTINGS_ROW_H) {
+        row=(y-SETTINGS_NETWORK_Y)/SETTINGS_ROW_H;
+        if(row==0) { extern const app_desc_t app_kosync; ctx->request_app=&app_kosync; }
+        else { extern const app_desc_t app_opds; ctx->request_app=&app_opds; }
+        return APP_REDRAW_NONE;
+    }
     return APP_REDRAW_NONE;
 }
 
@@ -3125,9 +3168,10 @@ static bool no_menu_handle(app_ctx_t *ctx) { (void)ctx; return false; }
 static void settings_media_lost(app_ctx_t *ctx) {
     settings_drag_reset();
     bookmark_preview_release();
+    settings_network_refresh();
     (void)ctx; s_avatar_ready=s_avatar_pending=false; s_avatar_path[0]=0;
 }
-static void settings_media_ready(app_ctx_t *ctx) { settings_drag_reset(); (void)ctx; settings_prepare_profile(); }
+static void settings_media_ready(app_ctx_t *ctx) { settings_drag_reset(); settings_network_refresh(); (void)ctx; settings_prepare_profile(); }
 static bool settings_edge_back(app_ctx_t *ctx) {
     (void)ctx;
     return s_page != SETTINGS_MAIN && !s_reset_pending && !s_local_pending &&

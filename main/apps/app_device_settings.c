@@ -95,6 +95,10 @@
 #include "read_pico_search.h"
 #include "book_store.h"
 #include "book_cover.h"
+#if !KIIKO_BOARD_METALIO47
+#include "book_kosync.h"
+#include "book_opds.h"
+#endif
 #include "ota_update.h"
 #include "ota_online.h"
 #include "esp_app_desc.h"
@@ -120,6 +124,34 @@ static EpdRect power_sleep_choice_rect(int index) {
 static void fit_value(char *value, int width);
 static void settings_card(uint8_t *fb, EpdRect rect, int radius, uint8_t fill, uint8_t edge);
 static char s_notice[96];
+// 网络服务行缓存：进页/媒体就绪时读一次内存卡配置，render 不碰文件。
+// Network-service row cache: read the TF config on entry/media-ready; render never touches files.
+// S31 的 5 MB 应用分区放不下这两个功能，S31 固件不编入“网络服务”分组。
+// The S31 5 MB app partition cannot hold both features, so the S31 build leaves the
+// network-services group out.
+#if !KIIKO_BOARD_METALIO47
+static char s_net_kosync[96] = "未配置";
+static char s_net_opds[64] = "未配置";
+static void settings_network_refresh(void) {
+    kosync_config_t kosync = {0};
+    if (kosync_config_load(&kosync) == ESP_OK && kosync_config_ready(&kosync)) {
+        const char *host = kosync.server;
+        const char *scheme = strstr(host, "://");
+        if (scheme) host = scheme + 3;
+        size_t length = strcspn(host, "/?#");
+        if (length >= sizeof(s_net_kosync)) length = sizeof(s_net_kosync) - 1;
+        memcpy(s_net_kosync, host, length);
+        s_net_kosync[length] = 0;
+        if (!s_net_kosync[0]) snprintf(s_net_kosync, sizeof(s_net_kosync), "未配置");
+    } else {
+        snprintf(s_net_kosync, sizeof(s_net_kosync), "未配置");
+    }
+    opds_config_t opds = {0};
+    if (opds_config_load(&opds) == ESP_OK && opds.count)
+        snprintf(s_net_opds, sizeof(s_net_opds), "%u 台服务器", (unsigned)opds.count);
+    else snprintf(s_net_opds, sizeof(s_net_opds), "未配置");
+}
+#endif
 typedef enum { SETTINGS_MAIN, SETTINGS_WIFI, SETTINGS_TIME,
                SETTINGS_TIME_EDIT, SETTINGS_SHELF_STYLE, SETTINGS_SYSTEM_FONT,
 #if KIIKO_BOARD_METALIO47
@@ -470,6 +502,15 @@ static int settings_main_row_height(void) {
 #define SETTINGS_DISPLAY_Y (SETTINGS_WIRELESS_Y + SETTINGS_WIRELESS_ROWS * SETTINGS_ROW_H + 78)
 #define SETTINGS_PERSONAL_Y (SETTINGS_DISPLAY_Y + SETTINGS_DISPLAY_ROWS * SETTINGS_ROW_H + 78)
 #define SETTINGS_MAINTENANCE_Y (SETTINGS_PERSONAL_Y + SETTINGS_PERSONAL_ROWS * SETTINGS_ROW_H + 78)
+// “网络服务”分组接在“升级和恢复”之后，两行：KOReader 同步 / OPDS 书库。
+// "Network services" follows Maintenance with two rows: KOReader sync and the OPDS library.
+#if KIIKO_BOARD_METALIO47
+#define SETTINGS_NETWORK_ROWS 0
+#define SETTINGS_NETWORK_Y (SETTINGS_MAINTENANCE_Y + SETTINGS_MAINTENANCE_ROWS * SETTINGS_ROW_H + 78)
+#else
+#define SETTINGS_NETWORK_ROWS 2
+#define SETTINGS_NETWORK_Y (SETTINGS_MAINTENANCE_Y + SETTINGS_MAINTENANCE_ROWS * SETTINGS_ROW_H + 78)
+#endif
 // 设置行图标：32 像素盒，在行高 68 里垂直居中；墨色统一，避免一行一个灰度。
 // Setting row icons: a 32 px box centred in the 68 px row with one shared ink level.
 #define SETTINGS_UNLOCK_ICON 18
@@ -482,8 +523,13 @@ static int settings_main_row_height(void) {
 // 主页面滚动上限：把最后一组的最后一行刚好推到导航栏之上，多留 8px 余量。
 // Main-page scroll limit: just enough to bring the last row of the last group above the nav bar,
 // with 8 px to spare.
+#if KIIKO_BOARD_METALIO47
 #define SETTINGS_SCROLL_MAX \
     (SETTINGS_MAINTENANCE_Y + SETTINGS_MAINTENANCE_ROWS * SETTINGS_ROW_H - UI_NAV_REFRESH_END + 12)
+#else
+#define SETTINGS_SCROLL_MAX \
+    (SETTINGS_NETWORK_Y + SETTINGS_NETWORK_ROWS * SETTINGS_ROW_H - UI_NAV_REFRESH_END + 12)
+#endif
 static char s_editor[96], s_editor_notice[80];
 static ui_text_edit_t s_editor_input;
 static bool s_editor_signature;
@@ -1114,6 +1160,8 @@ static void setting_icon(uint8_t *fb, int index, int cx, int cy) {
         UI_ICON_ZAP,               // 19 快充 / fast charge
         [20] = UI_ICON_CHART_COLUMN, // 20 书籍百分比 / cover progress
         [21] = UI_ICON_REFRESH_CW,  // 21 设备同步 / device sync
+        [22] = UI_ICON_BOOK_OPEN,   // 22 KOReader 同步 / KOReader sync
+        [23] = UI_ICON_DOWNLOAD,    // 23 OPDS 书库 / OPDS library
     };
     if (index < 0 || index >= (int)(sizeof(icons) / sizeof(icons[0]))) return;
     ui_draw_icon(fb, cx, cy, SETTINGS_ICON_PX, icons[index], SETTINGS_ICON_INK);
@@ -2006,6 +2054,13 @@ static void render_content(app_ctx_t *ctx, uint8_t *fb) {
 #endif
     setting_group(fb,SETTINGS_MAINTENANCE_Y-49,"升级和恢复",SETTINGS_MAINTENANCE_Y,
                   maintenance_icons,maintenance_labels,maintenance_values,SETTINGS_MAINTENANCE_ROWS);
+#if !KIIKO_BOARD_METALIO47
+    const char *network_labels[]={"KOReader 同步","OPDS 书库"};
+    const char *network_values[]={s_net_kosync,s_net_opds};
+    const int network_icons[]={22,23};
+    setting_group(fb,SETTINGS_NETWORK_Y-49,"网络服务",SETTINGS_NETWORK_Y,
+                  network_icons,network_labels,network_values,SETTINGS_NETWORK_ROWS);
+#endif
     // 主列表也要有一行提示位：确认、修复结果都写在这里，不然点了没有任何回音。
     // The main list needs a notice line too: confirmation and the repair result land here, or a tap
     // would have no answer at all.
@@ -2430,6 +2485,9 @@ static void on_enter(app_ctx_t *ctx) {
     s_boot_pending = s_local_pending = s_upgrade_restart = false;
     s_upgrade_offer_pending = s_upgrade_confirm = false;
     (void)read_pico_transfer_get_saved_wifi(s_main_wifi,&s_main_wifi_saved);
+    #if !KIIKO_BOARD_METALIO47
+settings_network_refresh();
+#endif
     settings_prepare_profile();
 #if KIIKO_BOARD_METALIO47
     if(settings_take_lock_style_return()&&!s_shelf_style_from_manage)s_page=SETTINGS_LOCK_STYLE;
@@ -3499,6 +3557,14 @@ static app_redraw_t on_gesture(app_ctx_t *ctx, const ui_gesture_event_t *ev) {
 #endif
         return APP_REDRAW_PAGE;
     }
+#if !KIIKO_BOARD_METALIO47
+    if(y>=SETTINGS_NETWORK_Y && y<SETTINGS_NETWORK_Y+SETTINGS_NETWORK_ROWS*SETTINGS_ROW_H) {
+        row=(y-SETTINGS_NETWORK_Y)/SETTINGS_ROW_H;
+        if(row==0) { extern const app_desc_t app_kosync; ctx->request_app=&app_kosync; }
+        else { extern const app_desc_t app_opds; ctx->request_app=&app_opds; }
+        return APP_REDRAW_NONE;
+    }
+#endif
     return APP_REDRAW_NONE;
 }
 
@@ -3584,11 +3650,17 @@ static void settings_media_lost(app_ctx_t *ctx) {
     settings_drag_reset();
 #endif
     bookmark_preview_release();
+    #if !KIIKO_BOARD_METALIO47
+settings_network_refresh();
+#endif
     (void)ctx; s_avatar_ready=s_avatar_pending=false; s_avatar_path[0]=0;
 }
 static void settings_media_ready(app_ctx_t *ctx) {
 #if KIIKO_BOARD_METALIO47
     settings_drag_reset();
+#endif
+    #if !KIIKO_BOARD_METALIO47
+settings_network_refresh();
 #endif
     (void)ctx;settings_prepare_profile();
 }

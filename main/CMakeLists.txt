@@ -151,8 +151,16 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
 # and leave the 5 MB app partition some headroom.
 if(NOT CMAKE_SCRIPT_MODE_FILE)
 foreach(kiiko_source IN LISTS kiiko_selected_sources)
-    if(kiiko_source MATCHES "(app_device_settings|book_epub|book_layout|book_store|book_library|book_source|book_txt|zip_reader|html_text|gbk|app_files)\\.c$")
+    if(kiiko_source MATCHES "(app_device_settings|book_epub|book_layout|book_store|book_library|book_source|book_txt|zip_reader|html_text|gbk|app_files|app_kosync|app_opds|book_kosync|book_opds|opds_feed|kosync_xhtml|kosync_md5|kosync_proto)\\.c$")
         set_source_files_properties("${kiiko_source}" PROPERTIES COMPILE_OPTIONS "-Os")
+    endif()
+endforeach()
+# 新增网络模块保留 format-truncation 警告但不视为错误：路径拼接均有运行时长度检查。
+# Keep format-truncation warnings for the new network modules but not fatal; path joins are
+# bounds-checked at run time.
+foreach(kiiko_source IN LISTS kiiko_selected_sources)
+    if(kiiko_source MATCHES "(app_kosync|app_opds|book_kosync|book_opds|opds_feed|kosync_xhtml|kosync_md5|kosync_proto)\\.c$")
+        set_source_files_properties("${kiiko_source}" PROPERTIES COMPILE_OPTIONS "-Os;-Wno-error=format-truncation")
     endif()
 endforeach()
 endif()
@@ -315,9 +323,17 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
         "apps/app_image.c"
         "apps/app_transfer.c"
         "apps/app_cloud_sync.c"
+        "apps/app_kosync.c"
+        "apps/app_opds.c"
         "apps/usb_storage.c"
         "book/book_store.c"
         "book/book_xteink_sync.c"
+        "book/book_kosync.c"
+        "book/kosync_proto.c"
+        "book/kosync_xhtml.c"
+        "book/kosync_md5.c"
+        "book/book_opds.c"
+        "book/opds_feed.c"
         "book/book_progress.c"
         "book/book_history_backup.c"
         "book/book_title.c"
@@ -357,8 +373,16 @@ kiiko_board_sources(kiiko_selected_sources "${CMAKE_CURRENT_LIST_DIR}" "app_main
 # so only this page is compiled for size.
 if(NOT CMAKE_SCRIPT_MODE_FILE)
 foreach(kiiko_source IN LISTS kiiko_selected_sources)
-    if(kiiko_source MATCHES "(app_device_settings|book_epub|book_layout|book_store|book_library|book_source|book_txt|zip_reader|html_text|gbk|app_files)\\.c$")
+    if(kiiko_source MATCHES "(app_device_settings|book_epub|book_layout|book_store|book_library|book_source|book_txt|zip_reader|html_text|gbk|app_files|app_kosync|app_opds|book_kosync|book_opds|opds_feed|kosync_xhtml|kosync_md5|kosync_proto)\\.c$")
         set_source_files_properties("${kiiko_source}" PROPERTIES COMPILE_OPTIONS "-Os")
+    endif()
+endforeach()
+# 新增网络模块保留 format-truncation 警告但不视为错误：路径拼接均有运行时长度检查。
+# Keep format-truncation warnings for the new network modules but not fatal; path joins are
+# bounds-checked at run time.
+foreach(kiiko_source IN LISTS kiiko_selected_sources)
+    if(kiiko_source MATCHES "(app_kosync|app_opds|book_kosync|book_opds|opds_feed|kosync_xhtml|kosync_md5|kosync_proto)\\.c$")
+        set_source_files_properties("${kiiko_source}" PROPERTIES COMPILE_OPTIONS "-Os;-Wno-error=format-truncation")
     endif()
 endforeach()
 endif()
@@ -396,12 +420,12 @@ if(NOT KIIKO_BOARD_METALIO47)
         endif()
         # 在线字体、联网升级、自检、键盘输入法与二维码不在阅读刷新路径上，同样按尺寸优化，给快速灰阶的 GRAY8 GL16 表腾出空间。
         # Online fonts, network OTA, self-test, keyboard/IME and DataMatrix are off the reader refresh path; size-optimize them to fit the fast-gray GRAY8 GL16 table.
-        if(source MATCHES "/(online_font|online_font_store|ota_online|pmu_selftest|ui_keyboard|ui_ime|datamatrix)[.]c$")
+        if(source MATCHES "/(online_font|online_font_store|ota_online|pmu_selftest|ui_keyboard|ui_ime|datamatrix|app_kosync|app_opds|book_kosync|book_opds|opds_feed|kosync_xhtml|kosync_md5|kosync_proto)[.]c$")
             set_property(SOURCE "${source}" APPEND PROPERTY COMPILE_OPTIONS "-Os")
         endif()
         # 在线字体、联网升级、自检、键盘输入法与二维码不在阅读刷新路径上，同样按尺寸优化，给快速灰阶的 GRAY8 GL16 表腾出空间。
         # Online fonts, network OTA, self-test, keyboard/IME and DataMatrix are off the reader refresh path; size-optimize them to fit the fast-gray GRAY8 GL16 table.
-        if(source MATCHES "/(online_font|online_font_store|ota_online|pmu_selftest|ui_keyboard|ui_ime|datamatrix)[.]c$")
+        if(source MATCHES "/(online_font|online_font_store|ota_online|pmu_selftest|ui_keyboard|ui_ime|datamatrix|app_kosync|app_opds|book_kosync|book_opds|opds_feed|kosync_xhtml|kosync_md5|kosync_proto)[.]c$")
             set_property(SOURCE "${source}" APPEND PROPERTY COMPILE_OPTIONS "-Os")
         endif()
     endforeach()

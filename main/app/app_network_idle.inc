@@ -2,12 +2,20 @@
 // Outbound jobs keep the connection in use; the transfer service also tracks HTTP and clock work.
 #include "book/book_weread_cover.h"
 #include "book/book_xteink_sync.h"
+#if !KIIKO_BOARD_METALIO47
+#include "book/book_kosync.h"
+#include "book/book_opds.h"
+#endif
 #include "online_font.h"
 
 static void poll_wifi_idle(void) {
     const book_weread_cover_status_t covers = book_weread_cover_status();
     online_font_status_t font;
     online_font_status(&font);
-    read_pico_transfer_idle_poll(pico_online_busy() || xteink_sync_busy() || font.busy ||
+    read_pico_transfer_idle_poll(pico_online_busy() || xteink_sync_busy() ||
+#if !KIIKO_BOARD_METALIO47
+                                 kosync_busy() || opds_busy() ||
+#endif
+                                 font.busy ||
                                  covers.running || covers.saving || (covers.active && covers.multiple));
 }

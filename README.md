@@ -139,6 +139,14 @@ Please report firmware bugs in this repository, not in the MindReset upstream is
 
 File management shows **WiFi transfer**, **Hotspot transfer** and **USB transfer** directly. WiFi connects to a saved network or opens network setup; hotspot mode starts the device access point; USB exposes the TF card to the computer. AP/STA browser transfer keeps directory browsing, arbitrary-file uploads and status-signature editing.
 
+### Network services (local test)
+
+> The S31 (Metalio) 5 MB app partition cannot hold both features, so the S31 build leaves them
+> out; the Pico build includes them.
+
+
+Settings → Network services adds **KOReader sync** and the **OPDS library**. KOReader sync keeps EPUB reading progress in step with a kosync server (self-hosted servers, account/password, content-or-filename matching, upload local or apply remote progress). The OPDS library browses OPDS 1.2 Atom catalogs and downloads EPUBs into the book root. Both raise the shared WiFi station link only while needed, and configuration plus credentials live only on the TF card under the book directory's `.readpico/net/` (Pico default `TF:/books/.readpico/net/`), never in NVS or the settings backup. EPUB only; OPDS 1.2 Atom with HTTP Basic, without OAuth, LCP/DRM or search.
+
 Shake-to-turn is off by default and enabled in reader Font Settings. A horizontal left/right impulse turns to the previous/next page. Slow tilts, other axes, touch and rebounds are filtered; wait through an 800 ms cooldown and rest before the next gesture. Direction and sensitivity still need device validation. The global refresh test option is removed and ignored in older configurations.
 
 ### Local test: list shelf and lock feedback

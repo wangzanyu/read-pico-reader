@@ -31,4 +31,10 @@ build/book-tests/gesture
 build/book-tests/ui_kit
 gcc "${flags[@]}" -Itools/html_text_stubs tools/html_text_host_test.c main/book/html_text.c -o build/book-tests/html
 build/book-tests/html
+gcc "${flags[@]}" -Itools/html_text_stubs tools/kosync_xhtml_host_test.c main/book/kosync_xhtml.c main/book/html_text.c -o build/book-tests/kosync_xhtml
+build/book-tests/kosync_xhtml
+gcc "${flags[@]}" tools/kosync_proto_host_test.c main/book/kosync_proto.c main/book/kosync_md5.c -o build/book-tests/kosync_proto
+build/book-tests/kosync_proto
+gcc "${flags[@]}" tools/opds_feed_host_test.c main/book/opds_feed.c -o build/book-tests/opds_feed
+build/book-tests/opds_feed
 python3 tools/gif_host_test.py
